@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, RefreshCw, Sparkles } from "lucide-react";
@@ -5,12 +6,14 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CampaignApprovalQueue } from "@/components/dashboard/CampaignApprovalQueue";
-import { generateCampaign, getCampaign, getSearch, updateCampaignStatus } from "@/lib/dataStore";
-import type { CampaignStatus } from "@/lib/types";
+import { generateCampaign, generateCampaignCreative, getCampaign, getSearch, updateCampaignStatus } from "@/lib/dataStore";
+import type { CampaignDay, CampaignStatus } from "@/lib/types";
 
 export default function Campaign() {
   const { searchId } = useParams<{ searchId: string }>();
   const queryClient = useQueryClient();
+  const [generatingDayId, setGeneratingDayId] = React.useState<string | null>(null);
+  const [creativeErrors, setCreativeErrors] = React.useState<Record<string, string>>({});
 
   const searchQuery = useQuery({
     queryKey: ["search", searchId],
@@ -36,6 +39,30 @@ export default function Campaign() {
         old?.map((d) => (d.id === id ? { ...d, status } : d))
       );
     },
+  });
+
+  const creativeMutation = useMutation({
+    mutationFn: (day: CampaignDay) => generateCampaignCreative(day.id, day.creativeConcept),
+    onMutate: (day) => {
+      setGeneratingDayId(day.id);
+      setCreativeErrors((prev) => {
+        const next = { ...prev };
+        delete next[day.id];
+        return next;
+      });
+    },
+    onSuccess: (imageUrl, day) => {
+      queryClient.setQueryData(["campaign", searchId], (old: Awaited<ReturnType<typeof getCampaign>> | undefined) =>
+        old?.map((d) => (d.id === day.id ? { ...d, creativeImageUrl: imageUrl } : d))
+      );
+    },
+    onError: (err, day) => {
+      setCreativeErrors((prev) => ({
+        ...prev,
+        [day.id]: err instanceof Error ? err.message : "Failed to generate creative.",
+      }));
+    },
+    onSettled: () => setGeneratingDayId(null),
   });
 
   const days = campaignQuery.data ?? [];
@@ -94,6 +121,9 @@ export default function Campaign() {
             <CampaignApprovalQueue
               days={days}
               onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+              onGenerateCreative={(day) => creativeMutation.mutate(day)}
+              generatingDayId={generatingDayId}
+              creativeErrors={creativeErrors}
             />
           </>
         )}

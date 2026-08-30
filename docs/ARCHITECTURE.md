@@ -121,9 +121,10 @@ erDiagram
     }
 ```
 
-Full DDL + Row Level Security policies: [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql) and
-[`0002_add_competitor_tier.sql`](../supabase/migrations/0002_add_competitor_tier.sql). Every table is reachable only by
-its owning user, traced back to `searches.user_id = auth.uid()`.
+Full DDL + Row Level Security policies: [`supabase/migrations/`](../supabase/migrations/) (`0001_init.sql`,
+`0002_add_competitor_tier.sql`, `0003_add_campaign_creative_image.sql` — the last also provisions the public
+`campaign-creatives` Storage bucket). Every table is reachable only by its owning user, traced back to
+`searches.user_id = auth.uid()`.
 
 ## 4. Edge function contracts
 
@@ -139,7 +140,12 @@ as the authenticated user (see `_shared/supabaseClient.ts`).
 | `analyze-ads` | `ANTHROPIC_API_KEY` | `{ pastedText }` | `{ messagingAngle: string }` |
 | `analyze-ad-image` | `ANTHROPIC_API_KEY` | `{ imageBase64, mediaType }` | `{ extractedText: string, messagingAngle: string }` |
 | `generate-campaign` | `ANTHROPIC_API_KEY` | `{ searchId }` | `{ days: { day, hook, caption, creativeConcept }[7] }` |
-| `env-status` | none | *(no body)* | `{ anthropic, discovery, googlePlaces: boolean }` — booleans only, never the secret values; drives the Settings page's Live/Demo badges |
+| `generate-campaign-creative` | `GEMINI_API_KEY` | `{ campaignDayId }` | `{ imageUrl: string }` — generates a background image via Imagen and uploads it to the `campaign-creatives` Storage bucket; also updates `campaigns.creative_image_url` |
+| `env-status` | none | *(no body)* | `{ anthropic, discovery, googlePlaces, imageGen: boolean }` — booleans only, never the secret values; drives the Settings page's Live/Demo badges |
+
+`generate-campaign-creative` never asks the image model to render the hook text — the prompt explicitly forbids any
+text/letters/logos in the generated image, since AI image models render text unreliably. The hook is overlaid as real
+HTML/CSS on top of the image in `CampaignApprovalQueue.tsx` instead, so it's always crisp and correctly spelled.
 
 `discover-competitors`, `analyze-ads`, `analyze-ad-image`, and `generate-campaign` are read-only against external APIs —
 the frontend performs the corresponding table insert after receiving the response, so a partial failure never leaves an

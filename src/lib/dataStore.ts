@@ -6,6 +6,7 @@ import {
   generateMockCampaign,
   generateMockCompetitorData,
   generateMockCompetitors,
+  generateMockCreativeImage,
 } from "./mockData";
 import type {
   AdExample,
@@ -472,6 +473,7 @@ export async function getCampaign(searchId: string): Promise<CampaignDay[]> {
       creativeConcept: row.creative_concept,
       status: row.status,
       source: "live" as const,
+      creativeImageUrl: row.creative_image_url ?? undefined,
     }));
   }
 
@@ -493,6 +495,31 @@ export async function updateCampaignStatus(campaignDayId: string, status: Campai
   const day = db.campaigns.find((c) => c.id === campaignDayId);
   if (day) day.status = status;
   writeDb(db);
+}
+
+/**
+ * On-demand background image for one campaign day. Live mode calls Gemini
+ * (Imagen) via the edge function and stores the result in Supabase Storage;
+ * the hook text itself is never baked into the image — it's overlaid as
+ * real HTML/CSS on top, since AI image models render text unreliably.
+ */
+export async function generateCampaignCreative(campaignDayId: string, creativeConcept: string): Promise<string> {
+  if (isLive && supabase) {
+    const { data, error } = await supabase.functions.invoke("generate-campaign-creative", {
+      body: { campaignDayId },
+    });
+    if (error) throw error;
+    const imageUrl = data.imageUrl as string;
+    return imageUrl;
+  }
+
+  await wait(1200);
+  const imageUrl = generateMockCreativeImage(campaignDayId, creativeConcept);
+  const db = readDb();
+  const day = db.campaigns.find((c) => c.id === campaignDayId);
+  if (day) day.creativeImageUrl = imageUrl;
+  writeDb(db);
+  return imageUrl;
 }
 
 // ---------------------------------------------------------------------------
@@ -586,14 +613,17 @@ export interface EnvStatus {
   anthropic: boolean;
   discovery: boolean;
   googlePlaces: boolean;
+  imageGen: boolean;
 }
+
+const EMPTY_ENV_STATUS: EnvStatus = { anthropic: false, discovery: false, googlePlaces: false, imageGen: false };
 
 export async function getEnvStatus(): Promise<EnvStatus> {
   if (isLive && supabase) {
     const { data, error } = await supabase.functions.invoke("env-status");
-    if (error) return { anthropic: false, discovery: false, googlePlaces: false };
+    if (error) return EMPTY_ENV_STATUS;
     return data as EnvStatus;
   }
 
-  return { anthropic: false, discovery: false, googlePlaces: false };
+  return EMPTY_ENV_STATUS;
 }

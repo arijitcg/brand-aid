@@ -11,5 +11,6 @@ Deno.serve((req) => {
     anthropic: Boolean(Deno.env.get("ANTHROPIC_API_KEY")),
     discovery: Boolean(Deno.env.get("SERPAPI_KEY")) || Boolean(Deno.env.get("GOOGLE_CSE_KEY") && Deno.env.get("GOOGLE_CSE_CX")),
     googlePlaces: Boolean(Deno.env.get("GOOGLE_PLACES_API_KEY")),
+    imageGen: Boolean(Deno.env.get("GEMINI_API_KEY")),
   });
 });

@@ -10,8 +10,9 @@ Full design/architecture writeup: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## Stack
 
-Vite + React + TypeScript + Tailwind CSS + shadcn/ui + Framer Motion · Supabase (Postgres + Auth + Edge Functions) ·
-Claude API (incl. vision) · SerpAPI/Google Custom Search · Google Places API.
+Vite + React + TypeScript + Tailwind CSS + shadcn/ui + Framer Motion · Supabase (Postgres + Auth + Edge Functions +
+Storage) · Claude API (incl. vision) · SerpAPI/Google Custom Search · Google Places API · Gemini (Imagen) for campaign
+creative images.
 
 ## Quick start (demo mode, no setup)
 
@@ -29,7 +30,7 @@ this mode.
 1. Create a project at [supabase.com](https://supabase.com), then from the project root:
    ```bash
    supabase link --project-ref <your-project-ref>
-   supabase db push   # applies both migrations, including the competitor tier column
+   supabase db push   # applies all migrations, including the competitor tier column and campaign-creatives bucket
    ```
 2. Set Edge Function secrets (all optional individually — each integration falls back to an error, not fake data, if its
    secret is missing):
@@ -37,6 +38,7 @@ this mode.
    supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
    supabase secrets set SERPAPI_KEY=...
    supabase secrets set GOOGLE_PLACES_API_KEY=...
+   supabase secrets set GEMINI_API_KEY=...
    # or, instead of SERPAPI_KEY:
    supabase secrets set GOOGLE_CSE_KEY=... GOOGLE_CSE_CX=...
    ```
@@ -48,6 +50,7 @@ this mode.
    supabase functions deploy analyze-ads
    supabase functions deploy analyze-ad-image
    supabase functions deploy generate-campaign
+   supabase functions deploy generate-campaign-creative
    supabase functions deploy env-status
    ```
 4. Copy `.env.example` to `.env` and fill in the values from your Supabase project's API settings:
@@ -80,9 +83,9 @@ src/
     auth.tsx             auth context (Supabase auth or local mock session)
   pages/                 Landing, Login, Dashboard, NewAnalysis, AnalysisDetail, Campaign, Settings
 supabase/
-  migrations/            0001_init.sql (schema + RLS), 0002_add_competitor_tier.sql
+  migrations/            0001_init.sql (schema + RLS), 0002_add_competitor_tier.sql, 0003_add_campaign_creative_image.sql
   functions/              discover-competitors, fetch-competitor-data, analyze-competitor,
-                          analyze-ads, analyze-ad-image, generate-campaign
+                          analyze-ads, analyze-ad-image, generate-campaign, generate-campaign-creative
 docs/ARCHITECTURE.md    full design doc — diagrams, ERD, edge function contracts, UX flow
 ```
 

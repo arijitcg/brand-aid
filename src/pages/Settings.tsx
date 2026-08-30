@@ -34,6 +34,12 @@ export default function Settings() {
       envVars: ["GOOGLE_PLACES_API_KEY (Edge Function secret)"],
       note: "Used by fetch-competitor-data to pull real Google reviews per competitor.",
     },
+    {
+      name: "Gemini image generation (campaign creatives)",
+      live: Boolean(env?.imageGen),
+      envVars: ["GEMINI_API_KEY (Edge Function secret)"],
+      note: "Used by generate-campaign-creative — the hook text is always overlaid separately, never baked into the AI image.",
+    },
   ];
 
   return (

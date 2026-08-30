@@ -276,3 +276,23 @@ export function generateMockCampaign(searchId: string): Omit<CampaignDay, "id" |
   }
   return days;
 }
+
+// Demo-mode stand-in for the real Gemini-generated background image — a
+// seeded gradient, since we can't call a paid image API without a key. The
+// hook text is overlaid separately by the UI either way, live or mock.
+export function generateMockCreativeImage(seedKey: string, creativeConcept: string): string {
+  const rng = mulberry32(seedFrom(seedKey + creativeConcept));
+  const hueA = Math.floor(rng() * 360);
+  const hueB = (hueA + 40 + Math.floor(rng() * 60)) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="hsl(${hueA},55%,32%)" />
+        <stop offset="100%" stop-color="hsl(${hueB},60%,22%)" />
+      </linearGradient>
+    </defs>
+    <rect width="800" height="800" fill="url(#g)" />
+    <circle cx="${200 + rng() * 400}" cy="${200 + rng() * 400}" r="${120 + rng() * 160}" fill="hsl(${hueA},50%,50%)" opacity="0.15" />
+  </svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}

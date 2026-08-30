@@ -75,6 +75,8 @@ export interface CampaignDay {
   creativeConcept: string;
   status: CampaignStatus;
   source: DataSource;
+  /** Generated on demand via generate-campaign-creative — absent until the user requests it. */
+  creativeImageUrl?: string;
 }
 
 export interface Report {
