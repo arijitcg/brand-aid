@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --radius: 0.65rem;
+
+  --background: hsl(240 20% 98%);
+  --foreground: hsl(240 15% 9%);
+
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(240 15% 9%);
+
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(240 15% 9%);
+
+  --primary: hsl(262 60% 32%);
+  --primary-foreground: hsl(260 25% 98%);
+
+  --secondary: hsl(240 15% 95%);
+  --secondary-foreground: hsl(240 12% 20%);
+
+  --muted: hsl(240 12% 96%);
+  --muted-foreground: hsl(240 6% 45%);
+
+  --accent: hsl(262 45% 93%);
+  --accent-foreground: hsl(262 40% 28%);
+
+  --destructive: hsl(6 75% 50%);
+  --destructive-foreground: hsl(6 25% 98%);
+
+  --success: hsl(150 55% 38%);
+  --success-foreground: hsl(150 30% 98%);
+
+  --border: hsl(240 12% 89%);
+  --input: hsl(240 12% 89%);
+  --ring: hsl(262 50% 50%);
+
+  --sidebar: hsl(265 22% 12%);
+  --sidebar-foreground: hsl(265 15% 90%);
+  --sidebar-border: hsl(265 14% 22%);
+  --sidebar-accent: hsl(268 20% 22%);
+  --sidebar-accent-foreground: hsl(265 15% 98%);
+}
+
+.dark {
+  --background: hsl(240 14% 12%);
+  --foreground: hsl(240 10% 94%);
+
+  --card: hsl(240 12% 16%);
+  --card-foreground: hsl(240 10% 94%);
+
+  --popover: hsl(240 12% 16%);
+  --popover-foreground: hsl(240 10% 94%);
+
+  --primary: hsl(262 65% 72%);
+  --primary-foreground: hsl(262 35% 14%);
+
+  --secondary: hsl(240 8% 22%);
+  --secondary-foreground: hsl(240 8% 90%);
+
+  --muted: hsl(240 8% 20%);
+  --muted-foreground: hsl(240 6% 65%);
+
+  --accent: hsl(262 30% 24%);
+  --accent-foreground: hsl(262 40% 92%);
+
+  --destructive: hsl(6 70% 55%);
+  --destructive-foreground: hsl(6 25% 98%);
+
+  --success: hsl(150 45% 55%);
+  --success-foreground: hsl(150 30% 14%);
+
+  --border: hsl(240 8% 26%);
+  --input: hsl(240 8% 26%);
+  --ring: hsl(262 50% 55%);
+
+  --sidebar: hsl(265 22% 9%);
+  --sidebar-foreground: hsl(265 15% 90%);
+  --sidebar-border: hsl(265 14% 18%);
+  --sidebar-accent: hsl(268 20% 18%);
+  --sidebar-accent-foreground: hsl(265 15% 98%);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  body {
+    background: white;
+  }
+  .shadow-sm {
+    box-shadow: none !important;
+  }
+}
