@@ -7,24 +7,28 @@
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { supabaseForRequest } from "../_shared/supabaseClient.ts";
 
-const IMAGEN_MODEL = "imagen-4.0-generate-001";
+// "Nano Banana" — Gemini's native image-output model, called via
+// generateContent (not the older, separate Imagen :predict endpoint, which
+// this API key's project doesn't have access to).
+const GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image";
 
 async function generateImage(prompt: string, apiKey: string): Promise<Uint8Array> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1, aspectRatio: "1:1" },
+        contents: [{ parts: [{ text: prompt }] }],
       }),
     }
   );
-  if (!res.ok) throw new Error(`Gemini Imagen error: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new Error(`Gemini image generation error: ${res.status} ${await res.text()}`);
   const data = await res.json();
-  const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-  if (!b64) throw new Error(`Gemini Imagen returned no image: ${JSON.stringify(data)}`);
+  const parts = data.candidates?.[0]?.content?.parts ?? [];
+  const imagePart = parts.find((p: { inlineData?: { data?: string } }) => p.inlineData?.data);
+  const b64 = imagePart?.inlineData?.data;
+  if (!b64) throw new Error(`Gemini returned no image: ${JSON.stringify(data).slice(0, 500)}`);
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
@@ -52,7 +56,8 @@ Deno.serve(async (req) => {
     const prompt = [
       `Professional social-media marketing photograph for a home interior design ad campaign.`,
       `Scene / concept: ${day.creative_concept}`,
-      `Style: clean, modern, warm natural lighting, high-end residential interior, photorealistic.`,
+      `Style: clean, modern, warm natural lighting, high-end residential interior, photorealistic, square 1:1`,
+      `aspect ratio framed for an Instagram post.`,
       `Absolutely no text, no words, no letters, no numbers, no logos, no watermarks anywhere in the image —`,
       `pure visual scene only.`,
     ].join(" ");
