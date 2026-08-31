@@ -33,6 +33,7 @@ async function sendMessage(system: string, content: unknown): Promise<string> {
       system: `${system}\n\nRespond with ONLY a single valid JSON object/array. No markdown, no commentary, no code fences.`,
       messages: [{ role: "user", content }],
     }),
+    signal: AbortSignal.timeout(30000),
   });
 
   if (!res.ok) {

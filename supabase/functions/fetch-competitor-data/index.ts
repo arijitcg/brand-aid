@@ -49,6 +49,7 @@ async function fetchGoogleReviews(competitorName: string, apiKey: string): Promi
       "X-Goog-FieldMask": "places.id",
     },
     body: JSON.stringify({ textQuery: competitorName }),
+    signal: AbortSignal.timeout(15000),
   });
   if (!searchRes.ok) throw new Error(`Places searchText error: ${searchRes.status} ${await searchRes.text()}`);
   const searchData = await searchRes.json();
@@ -60,6 +61,7 @@ async function fetchGoogleReviews(competitorName: string, apiKey: string): Promi
       "X-Goog-Api-Key": apiKey,
       "X-Goog-FieldMask": "rating,userRatingCount,reviews",
     },
+    signal: AbortSignal.timeout(15000),
   });
   if (!detailsRes.ok) throw new Error(`Places details error: ${detailsRes.status} ${await detailsRes.text()}`);
   const details = await detailsRes.json();

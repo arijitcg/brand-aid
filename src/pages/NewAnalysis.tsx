@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, Loader2, Sparkles, Upload } from "lucide-react";
+import { ArrowRight, Loader2, RotateCcw, Sparkles, Upload } from "lucide-react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,7 @@ function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }
 }
 
 type Step = "niche" | "select" | "analyzing" | "ads";
+type AnalyzeStatus = { state: "pending" } | { state: "done" } | { state: "error"; message: string };
 
 const EXAMPLE_NICHES = ["Interior design, Kolkata", "Modular kitchens, Pune", "Home renovation, Bengaluru"];
 
@@ -45,7 +46,7 @@ export default function NewAnalysis() {
   const [searchId, setSearchId] = React.useState<string | null>(null);
   const [candidates, setCandidates] = React.useState<Competitor[]>([]);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
-  const [analyzeProgress, setAnalyzeProgress] = React.useState<Record<string, "pending" | "done">>({});
+  const [analyzeProgress, setAnalyzeProgress] = React.useState<Record<string, AnalyzeStatus>>({});
   const [adDrafts, setAdDrafts] = React.useState<Record<string, string>>({});
   const [adResults, setAdResults] = React.useState<Record<string, { text: string; angle: string }>>({});
 
@@ -62,6 +63,20 @@ export default function NewAnalysis() {
     },
   });
 
+  async function runAnalysisFor(c: Competitor) {
+    setAnalyzeProgress((p) => ({ ...p, [c.id]: { state: "pending" } }));
+    try {
+      await fetchCompetitorData(c, niche);
+      await analyzeCompetitor(c, niche);
+      setAnalyzeProgress((p) => ({ ...p, [c.id]: { state: "done" } }));
+    } catch (err) {
+      setAnalyzeProgress((p) => ({
+        ...p,
+        [c.id]: { state: "error", message: err instanceof Error ? err.message : "Failed to analyze this competitor." },
+      }));
+    }
+  }
+
   const analyzeMutation = useMutation({
     mutationFn: async () => {
       if (!searchId) return;
@@ -70,18 +85,16 @@ export default function NewAnalysis() {
       // Each competitor's own fetch-then-analyze chain is sequential (analysis
       // needs the fetched data), but the chains for different competitors are
       // independent — running them in parallel cuts wall-clock time roughly
-      // by the number of competitors instead of multiplying it.
-      setAnalyzeProgress(Object.fromEntries(selected.map((c) => [c.id, "pending"])));
-      await Promise.all(
-        selected.map(async (c) => {
-          await fetchCompetitorData(c, niche);
-          await analyzeCompetitor(c, niche);
-          setAnalyzeProgress((p) => ({ ...p, [c.id]: "done" }));
-        })
-      );
+      // by the number of competitors instead of multiplying it. Errors are
+      // caught per-competitor inside runAnalysisFor rather than left to
+      // reject Promise.all, so one failure can't leave the others (or the
+      // whole step) stuck showing "Working…" forever with no explanation.
+      await Promise.all(selected.map(runAnalysisFor));
     },
-    onSuccess: () => setStep("ads"),
   });
+
+  const allSettled =
+    selectedIds.length > 0 && selectedIds.every((id) => analyzeProgress[id] && analyzeProgress[id].state !== "pending");
 
   const adMutation = useMutation({
     mutationFn: async (competitorId: string) => {
@@ -213,20 +226,37 @@ export default function NewAnalysis() {
               {selectedCompetitors.map((c) => {
                 const status = analyzeProgress[c.id];
                 return (
-                  <div key={c.id} className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-                    <span className="text-sm font-medium">{c.name}</span>
-                    {status === "done" ? (
-                      <Badge variant="success">Analyzed</Badge>
-                    ) : status === "pending" ? (
-                      <Badge variant="outline">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Working…
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Queued</Badge>
-                    )}
+                  <div key={c.id} className="rounded-lg border border-border px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      {!status ? (
+                        <Badge variant="outline">Queued</Badge>
+                      ) : status.state === "done" ? (
+                        <Badge variant="success">Analyzed</Badge>
+                      ) : status.state === "pending" ? (
+                        <Badge variant="outline">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Working…
+                        </Badge>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="destructive">Failed</Badge>
+                          <Button size="sm" variant="outline" onClick={() => runAnalysisFor(c)}>
+                            <RotateCcw /> Retry
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    {status?.state === "error" && <p className="mt-1.5 text-xs text-destructive">{status.message}</p>}
                   </div>
                 );
               })}
+              {allSettled && (
+                <div className="flex justify-end pt-2">
+                  <Button onClick={() => setStep("ads")}>
+                    Continue <ArrowRight />
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

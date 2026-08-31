@@ -195,7 +195,7 @@ function cleanName(title: string, websiteUrl: string): string {
 
 async function searchWithSerpApi(query: string, apiKey: string): Promise<RawResult[]> {
   const url = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&num=20&api_key=${apiKey}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`SerpAPI error: ${res.status}`);
   const data = await res.json();
   const results = (data.organic_results ?? []) as { title: string; link: string }[];
@@ -204,7 +204,7 @@ async function searchWithSerpApi(query: string, apiKey: string): Promise<RawResu
 
 async function searchWithGoogleCse(query: string, key: string, cx: string): Promise<RawResult[]> {
   const url = `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}&q=${encodeURIComponent(query)}&num=20`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`Google CSE error: ${res.status}`);
   const data = await res.json();
   const items = (data.items ?? []) as { title: string; link: string }[];
