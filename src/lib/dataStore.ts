@@ -27,6 +27,32 @@ import type {
  */
 export const isLive = isSupabaseConfigured;
 
+/**
+ * When an Edge Function returns a non-2xx response, supabase-js throws a
+ * FunctionsHttpError whose `.message` is just a generic "Edge Function
+ * returned a non-2xx status code" — the actual `{ error: "..." }` body every
+ * function in this app returns is available on `.context` (the raw
+ * Response), one `.json()` away. Every functions.invoke() call site below
+ * routes its error through this so the real message reaches the UI instead
+ * of that useless generic one.
+ */
+async function functionErrorMessage(error: unknown): Promise<string> {
+  const context = (error as { context?: Response } | null)?.context;
+  if (context && typeof context.json === "function") {
+    try {
+      const body = await context.json();
+      if (body?.error) return String(body.error);
+    } catch {
+      // context wasn't JSON — fall through to the generic message below
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function throwFunctionError(error: unknown): Promise<never> {
+  throw new Error(await functionErrorMessage(error));
+}
+
 const DB_KEY = "designscope.mockdb.v1";
 
 interface LocalDB {
@@ -151,7 +177,7 @@ export async function discoverCompetitors(searchId: string, niche: string): Prom
     const { data, error } = await supabase.functions.invoke("discover-competitors", {
       body: { niche },
     });
-    if (error) throw error;
+    if (error) await throwFunctionError(error);
     const rows = (data?.competitors ?? []) as { name: string; websiteUrl: string; tier: string }[];
     const { data: inserted, error: insertError } = await supabase
       .from("competitors")
@@ -226,7 +252,7 @@ export async function fetchCompetitorData(competitor: Competitor, niche: string)
     const { data, error } = await supabase.functions.invoke("fetch-competitor-data", {
       body: { competitorId: competitor.id, name: competitor.name, websiteUrl: competitor.websiteUrl },
     });
-    if (error) throw error;
+    if (error) await throwFunctionError(error);
     return data as CompetitorData;
   }
 
@@ -267,7 +293,7 @@ export async function analyzeCompetitor(competitor: Competitor, niche: string): 
     const { data: result, error } = await supabase.functions.invoke("analyze-competitor", {
       body: { competitorId: competitor.id, niche, competitorData: data },
     });
-    if (error) throw error;
+    if (error) await throwFunctionError(error);
     return result as Analysis;
   }
 
@@ -307,7 +333,7 @@ export async function addAdExample(competitorId: string, pastedText: string): Pr
     const { data: angleResult, error: angleError } = await supabase.functions.invoke("analyze-ads", {
       body: { pastedText },
     });
-    if (angleError) throw angleError;
+    if (angleError) await throwFunctionError(angleError);
     const { data, error } = await supabase
       .from("ad_examples")
       .insert({ competitor_id: competitorId, pasted_text: pastedText, messaging_angle: angleResult?.messagingAngle })
@@ -353,7 +379,7 @@ export async function addAdExampleFromImage(
     const { data: extracted, error: extractError } = await supabase.functions.invoke("analyze-ad-image", {
       body: { imageBase64, mediaType },
     });
-    if (extractError) throw extractError;
+    if (extractError) await throwFunctionError(extractError);
     const { data, error } = await supabase
       .from("ad_examples")
       .insert({
@@ -417,7 +443,7 @@ export async function generateCampaign(searchId: string): Promise<CampaignDay[]>
     const { data, error } = await supabase.functions.invoke("generate-campaign", {
       body: { searchId },
     });
-    if (error) throw error;
+    if (error) await throwFunctionError(error);
     const rows = (data?.days ?? []) as { day: number; hook: string; caption: string; creativeConcept: string }[];
     const { data: inserted, error: insertError } = await supabase
       .from("campaigns")
@@ -508,7 +534,7 @@ export async function generateCampaignCreative(campaignDayId: string, creativeCo
     const { data, error } = await supabase.functions.invoke("generate-campaign-creative", {
       body: { campaignDayId },
     });
-    if (error) throw error;
+    if (error) await throwFunctionError(error);
     const imageUrl = data.imageUrl as string;
     return imageUrl;
   }
