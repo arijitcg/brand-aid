@@ -88,6 +88,7 @@ const BLOCKED_DOMAINS = [
   "glassdoor.co.in",
   "naukri.com",
   "indeed.com",
+  "ambitionbox.com",
   // Market-research/industry-report content farms.
   "marketdataforecast.com",
   "statista.com",
@@ -150,11 +151,31 @@ const BLOCKED_DOMAINS = [
   "wordpress.com",
 ];
 
-// These same domains are also excluded directly in the search query itself
-// (Google's `-site:` operator), so real competitor sites aren't crowded off
-// page one by aggregators in the first place — filtering post-hoc only
-// works if a genuine result made it into the top ~10 to begin with.
-const SEARCH_EXCLUSIONS = BLOCKED_DOMAINS.map((d) => `-site:${d}`).join(" ");
+// A handful of the highest-impact domains are also excluded directly in the
+// search query itself (Google's `-site:` operator), so real competitor
+// sites aren't crowded off page one in the first place. Deliberately NOT
+// the full ~80-domain BLOCKED_DOMAINS list: a query padded with that many
+// `-site:` operators (1900+ characters) overwhelms Google's query parsing
+// and the results degrade into matching stray fragments instead of the
+// actual query (observed firsthand: "interior design, Hyderabad" started
+// returning results about clothing "tops" once the list grew past ~80
+// entries). Full-list filtering still happens post-hoc via isBlockedDomain,
+// which has no such length constraint.
+const SEARCH_EXCLUSION_DOMAINS = [
+  "reddit.com",
+  "facebook.com",
+  "instagram.com",
+  "quora.com",
+  "youtube.com",
+  "houzz.com",
+  "houzz.in",
+  "justdial.com",
+  "sulekha.com",
+  "tripadvisor.com",
+  "glassdoor.com",
+  "upwork.com",
+];
+const SEARCH_EXCLUSIONS = SEARCH_EXCLUSION_DOMAINS.map((d) => `-site:${d}`).join(" ");
 
 function isBlockedDomain(url: string): boolean {
   const host = hostnameOf(url);
@@ -242,9 +263,11 @@ async function filterOutAggregators(candidates: Candidate[], category: string, l
         "Exclude every result that is NOT that, including: marketplaces/aggregators/delivery apps that list many " +
         "unrelated businesses (e.g. Swiggy/Zomato/UberEats for restaurants, property portals for real estate); " +
         "news articles or press coverage about the industry; blog posts, listicles, or travel/review guides " +
-        "('best X in Y', 'top 10...'); job-listing or employer-review sites (Glassdoor, Naukri, Indeed); market- " +
-        "research reports or industry statistics pages; business directories or company-database profile pages; " +
-        "and social media or forum posts. When in doubt about whether a result is a real operating business's own " +
+        "('best X in Y', 'top 10...'); job-listing or employer-review sites (Glassdoor, Naukri, Indeed, " +
+        "AmbitionBox); market-research reports or industry statistics pages; business directories or " +
+        "company-database profile pages; educational institutions, courses, or certification programs that teach " +
+        "the subject rather than sell the service; and social media or forum posts. When in doubt about whether a " +
+        "result is a real operating business's own " +
         "site versus one of the above, exclude it.",
       `Niche: ${category}${location ? ` in ${location}` : ""}\n\nCandidates:\n${list}\n\n` +
         `Return a JSON array of the 0-based indices to KEEP (genuine individual competitor businesses only). ` +
