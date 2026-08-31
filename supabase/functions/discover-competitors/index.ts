@@ -123,6 +123,31 @@ const BLOCKED_DOMAINS = [
   "nobroker.in",
   // Company/startup research databases — informational, not a competitor.
   "tracxn.com",
+  // Freelancer/service marketplaces — list many independent providers, not
+  // a competitor themselves.
+  "upwork.com",
+  "fiverr.com",
+  "freelancer.com",
+  "guru.com",
+  // Document/file-hosting sites — uploaded PDFs/docs about an industry are
+  // never themselves a competitor.
+  "scribd.com",
+  "slideshare.net",
+  "issuu.com",
+  "academia.edu",
+  "docs.google.com",
+  "drive.google.com",
+  "dropbox.com",
+  // Generic free website-builder / blog-hosting domains. A handful of real
+  // small businesses do use these, but in practice a result on one of these
+  // is far more often a spam/placeholder/abandoned site than an authentic
+  // brand — worth the trade-off for a "real brands only" bar.
+  "jimdosite.com",
+  "wixsite.com",
+  "weebly.com",
+  "blogspot.com",
+  "sites.google.com",
+  "wordpress.com",
 ];
 
 // These same domains are also excluded directly in the search query itself
@@ -134,6 +159,20 @@ const SEARCH_EXCLUSIONS = BLOCKED_DOMAINS.map((d) => `-site:${d}`).join(" ");
 function isBlockedDomain(url: string): boolean {
   const host = hostnameOf(url);
   return BLOCKED_DOMAINS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+}
+
+// A listicle/directory PAGE is not a homepage representing one brand, even
+// when it happens to be hosted on an otherwise-legitimate domain — checked
+// on the URL path itself (deterministic, not dependent on LLM judgment),
+// since the Claude pass alone proved too inconsistent to catch these
+// reliably (e.g. ".../10-best-interior-design").
+function isListicleUrlPath(url: string): boolean {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    return /\/(\d+[-_]?)?(top|best)[-_]/.test(path) || /directory/.test(path) || /\/\d+-/.test(path);
+  } catch {
+    return false;
+  }
 }
 
 // Search-result titles are often listicle/guide phrasing ("100+ Best
@@ -253,7 +292,7 @@ Deno.serve(async (req) => {
       [nationalResults, "national"],
     ] as [RawResult[], Tier][]) {
       for (const r of results) {
-        if (isBlockedDomain(r.websiteUrl)) continue;
+        if (isBlockedDomain(r.websiteUrl) || isListicleUrlPath(r.websiteUrl)) continue;
         const host = hostnameOf(r.websiteUrl);
         if (seen.has(host)) continue;
         seen.add(host);
