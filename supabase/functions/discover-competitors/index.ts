@@ -4,19 +4,28 @@
 // national players are required to show up for a location-scoped query
 // (i.e. they need an actual presence there, not just category leadership).
 //
-// Raw web search results are noisy in two ways:
-//  1. Obvious junk — forums, social posts, directory/listicle pages. A cheap
-//     domain blocklist catches this before spending an AI call on it.
-//  2. Niche-specific aggregators — e.g. searching "fast food" surfaces
-//     Swiggy/Zomato (food-delivery marketplaces that list thousands of
-//     restaurants, not a competitor themselves). A fixed blocklist can never
-//     anticipate every industry's aggregators, so a Claude classification
-//     pass judges "is this an individual competitor business, or a
-//     marketplace/aggregator/portal" contextually for whatever niche was
-//     searched.
+// The user can type ANY niche, which rules out a maintained blocklist of
+// aggregator domains as the real filtering strategy — it can only ever know
+// about aggregators already seen, keeps growing without bound, and (as
+// happened here) a long-enough blocklist padded into the search query as
+// `-site:` exclusions eventually overwhelms Google's query parsing and
+// produces garbage results. So the *general* rule used instead: validate
+// each candidate against real Google Places data (business category,
+// address, review count) rather than pattern-matching its domain name.
+// Directories, aggregators, news sites, and course listings don't operate
+// as a single physical {category} business the way a genuine competitor
+// does, and that's visible in the Places data itself, for any niche, without
+// needing to know the aggregator by name in advance. Claude then reasons
+// over those real facts (or their absence) rather than guessing from a
+// search-result title/URL alone.
+//
+// Only a small, fixed set of domains is still hardcoded — social platforms
+// and search engines, which are never a business in ANY niche and never
+// will be, so there's no "unbounded list" risk from keeping those.
 //
 // Secrets: SERPAPI_KEY  -or-  GOOGLE_CSE_KEY + GOOGLE_CSE_CX
-//          ANTHROPIC_API_KEY (optional — enables the aggregator-filtering pass)
+//          ANTHROPIC_API_KEY (optional — enables the classification pass)
+//          GOOGLE_PLACES_API_KEY (optional — enables the Places validation pass)
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { askClaudeForJson } from "../_shared/claude.ts";
 
@@ -26,6 +35,18 @@ interface Candidate {
   name: string;
   websiteUrl: string;
   tier: Tier;
+}
+
+interface PlacesInfo {
+  matched: boolean;
+  primaryType?: string;
+  address?: string;
+  rating?: number;
+  reviewCount?: number;
+}
+
+interface EnrichedCandidate extends Candidate {
+  places: PlacesInfo;
 }
 
 interface RawResult {
@@ -47,12 +68,10 @@ function hostnameOf(url: string): string {
   }
 }
 
-// Generic junk that's never a competitor regardless of niche — social
-// platforms, forums, Q&A sites, search engines, and cross-industry
-// directories. Niche-specific aggregators (food delivery, real estate
-// portals, job boards, etc.) are handled by the Claude pass below instead,
-// since no fixed list could anticipate every industry's.
-const BLOCKED_DOMAINS = [
+// Never a business in any niche, ever — safe to hardcode since this is a
+// closed, niche-agnostic set, unlike aggregators/directories which are
+// specific to whatever the user happened to type.
+const UNIVERSAL_BLOCKED_DOMAINS = [
   "reddit.com",
   "facebook.com",
   "instagram.com",
@@ -67,126 +86,18 @@ const BLOCKED_DOMAINS = [
   "google.com",
   "google.co.in",
   "bing.com",
-  "houzz.in",
-  "houzz.com",
-  "houzz.co.uk",
-  "re-thinkingthefuture.com",
-  "sulekha.com",
-  "justdial.com",
-  "urbancompany.com",
-  "urbanclap.com",
-  "yellowpages.com",
-  "indiamart.com",
-  "tripadvisor.com",
-  "tripadvisor.in",
-  "yelp.com",
-  "latlong.net",
-  "wanderlog.com",
-  "dnb.com",
-  // Job/employer-review sites — surface for "top companies" style queries.
-  "glassdoor.com",
-  "glassdoor.co.in",
-  "naukri.com",
-  "indeed.com",
-  "ambitionbox.com",
-  // Market-research/industry-report content farms.
-  "marketdataforecast.com",
-  "statista.com",
-  "ibisworld.com",
-  "grandviewresearch.com",
-  "mordorintelligence.com",
-  // Major news/business-media sites — cover industry trends, never a
-  // competitor themselves.
-  "livemint.com",
-  "indianexpress.com",
-  "economictimes.indiatimes.com",
-  "timesofindia.indiatimes.com",
-  "business-standard.com",
-  "moneycontrol.com",
-  // Food-delivery marketplaces — dominate search results for any food/
-  // restaurant niche without being a competitor themselves.
-  "swiggy.com",
-  "zomato.com",
-  "ubereats.com",
-  "doordash.com",
-  "grubhub.com",
-  "foodpanda.com",
-  "foodpanda.pk",
-  "dineout.co.in",
-  "eazydiner.com",
-  "deliveroo.com",
-  "magicpin.in",
-  // Real estate / property portals.
-  "99acres.com",
-  "magicbricks.com",
-  "housing.com",
-  "makaan.com",
-  "nobroker.in",
-  // Company/startup research databases — informational, not a competitor.
-  "tracxn.com",
-  // Freelancer/service marketplaces — list many independent providers, not
-  // a competitor themselves.
-  "upwork.com",
-  "fiverr.com",
-  "freelancer.com",
-  "guru.com",
-  // Document/file-hosting sites — uploaded PDFs/docs about an industry are
-  // never themselves a competitor.
-  "scribd.com",
-  "slideshare.net",
-  "issuu.com",
-  "academia.edu",
-  "docs.google.com",
-  "drive.google.com",
-  "dropbox.com",
-  // Generic free website-builder / blog-hosting domains. A handful of real
-  // small businesses do use these, but in practice a result on one of these
-  // is far more often a spam/placeholder/abandoned site than an authentic
-  // brand — worth the trade-off for a "real brands only" bar.
-  "jimdosite.com",
-  "wixsite.com",
-  "weebly.com",
-  "blogspot.com",
-  "sites.google.com",
-  "wordpress.com",
 ];
-
-// A handful of the highest-impact domains are also excluded directly in the
-// search query itself (Google's `-site:` operator), so real competitor
-// sites aren't crowded off page one in the first place. Deliberately NOT
-// the full ~80-domain BLOCKED_DOMAINS list: a query padded with that many
-// `-site:` operators (1900+ characters) overwhelms Google's query parsing
-// and the results degrade into matching stray fragments instead of the
-// actual query (observed firsthand: "interior design, Hyderabad" started
-// returning results about clothing "tops" once the list grew past ~80
-// entries). Full-list filtering still happens post-hoc via isBlockedDomain,
-// which has no such length constraint.
-const SEARCH_EXCLUSION_DOMAINS = [
-  "reddit.com",
-  "facebook.com",
-  "instagram.com",
-  "quora.com",
-  "youtube.com",
-  "houzz.com",
-  "houzz.in",
-  "justdial.com",
-  "sulekha.com",
-  "tripadvisor.com",
-  "glassdoor.com",
-  "upwork.com",
-];
-const SEARCH_EXCLUSIONS = SEARCH_EXCLUSION_DOMAINS.map((d) => `-site:${d}`).join(" ");
+const SEARCH_EXCLUSIONS = UNIVERSAL_BLOCKED_DOMAINS.map((d) => `-site:${d}`).join(" ");
 
 function isBlockedDomain(url: string): boolean {
   const host = hostnameOf(url);
-  return BLOCKED_DOMAINS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+  return UNIVERSAL_BLOCKED_DOMAINS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
 }
 
 // A listicle/directory PAGE is not a homepage representing one brand, even
 // when it happens to be hosted on an otherwise-legitimate domain — checked
-// on the URL path itself (deterministic, not dependent on LLM judgment),
-// since the Claude pass alone proved too inconsistent to catch these
-// reliably (e.g. ".../10-best-interior-design").
+// on the URL path itself (deterministic, free, and niche-agnostic, unlike
+// the domain-name guessing this replaces).
 function isListicleUrlPath(url: string): boolean {
   try {
     const path = new URL(url).pathname.toLowerCase();
@@ -245,42 +156,130 @@ async function runSearch(query: string): Promise<RawResult[]> {
 }
 
 /**
- * Asks Claude which candidates are genuine individual competitor businesses,
- * as opposed to marketplaces/aggregators, news coverage, directories,
- * job/review sites, or market-research content that merely ranks well for
- * the search query. Returns the surviving candidates unchanged if the
- * classification call fails or no Anthropic key is configured — this pass
- * is a quality filter, not a hard requirement for discovery to work.
+ * Resolves one candidate against real Google Places data — the general,
+ * niche-agnostic signal used instead of a domain blocklist. A directory,
+ * aggregator, news site, or course listing doesn't operate as a single
+ * physical {category} business, and that's visible here (wrong category,
+ * no match, or resolves to an unrelated corporate office) regardless of
+ * what the aggregator happens to be called.
  */
-async function filterOutAggregators(candidates: Candidate[], category: string, location: string): Promise<Candidate[]> {
+async function lookupPlaces(name: string, location: string, apiKey: string): Promise<PlacesInfo> {
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.primaryType,places.formattedAddress,places.rating,places.userRatingCount",
+      },
+      body: JSON.stringify({ textQuery: location ? `${name} ${location}` : name }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { matched: false };
+    const data = await res.json();
+    const place = data.places?.[0];
+    if (!place) return { matched: false };
+    return {
+      matched: true,
+      primaryType: place.primaryType,
+      address: place.formattedAddress,
+      rating: place.rating,
+      reviewCount: place.userRatingCount,
+    };
+  } catch {
+    return { matched: false };
+  }
+}
+
+async function enrichWithPlaces(candidates: Candidate[], location: string): Promise<EnrichedCandidate[]> {
+  const placesKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
+  if (!placesKey) return candidates.map((c) => ({ ...c, places: { matched: false } }));
+
+  return Promise.all(
+    candidates.map(async (c) => ({ ...c, places: await lookupPlaces(c.name, location, placesKey) }))
+  );
+}
+
+/**
+ * Asks Claude which candidates are genuine individual competitor businesses
+ * physically operating in this category, reasoning over each candidate's
+ * real Places data (category, address, reviews — or its absence) rather
+ * than guessing from the search-result title/URL alone. Returns the
+ * surviving candidates unchanged if the classification call fails or no
+ * Anthropic key is configured — this pass is a quality filter, not a hard
+ * requirement for discovery to work.
+ */
+async function classifyCandidates(
+  candidates: EnrichedCandidate[],
+  category: string,
+  location: string
+): Promise<Candidate[]> {
   if (!Deno.env.get("ANTHROPIC_API_KEY") || candidates.length === 0) return candidates;
 
   try {
-    const list = candidates.map((c, i) => `${i}. ${c.name} — ${c.websiteUrl}`).join("\n");
-    const keepIndices = await askClaudeForJson<number[]>(
-      "You identify which search results are the OFFICIAL WEBSITE of a genuine, individual competitor business in " +
-        "a given industry — a specific company's own site for a business that actually operates in that space. " +
-        "Exclude every result that is NOT that, including: marketplaces/aggregators/delivery apps that list many " +
-        "unrelated businesses (e.g. Swiggy/Zomato/UberEats for restaurants, property portals for real estate); " +
-        "news articles or press coverage about the industry; blog posts, listicles, or travel/review guides " +
-        "('best X in Y', 'top 10...'); job-listing or employer-review sites (Glassdoor, Naukri, Indeed, " +
-        "AmbitionBox); market-research reports or industry statistics pages; business directories or " +
-        "company-database profile pages; educational institutions, courses, or certification programs that teach " +
-        "the subject rather than sell the service; and social media or forum posts. When in doubt about whether a " +
-        "result is a real operating business's own " +
-        "site versus one of the above, exclude it.",
+    const list = candidates
+      .map((c, i) => {
+        const p = c.places;
+        const placesLine = p.matched
+          ? `Places match: category "${p.primaryType ?? "unknown"}", ${p.address ?? "no address"}, ` +
+            `${p.rating ?? "no"} rating (${p.reviewCount ?? 0} reviews)`
+          : "Places match: none found";
+        return `${i}. ${c.name} — ${c.websiteUrl}\n   ${placesLine}`;
+      })
+      .join("\n");
+
+    const raw = await askClaudeForJson<number[] | { keep: number[] }>(
+      `You identify which candidates are a genuine, SINGLE business that itself provides "${category}" directly ` +
+        "to customers, as opposed to a marketplace/directory/aggregator platform that connects customers to many " +
+        "independent providers of that same service. This is the single most important test, and it is about " +
+        "BUSINESS MODEL, not fame, size, category match, or whether the candidate has its own real Google Places " +
+        "listing — marketplaces are frequently huge, famous, highly-reviewed companies with real corporate offices " +
+        "(a Places match proves the company is real, not that it itself performs the service). Ask: if a customer " +
+        `used this site, would they end up as a customer of ONE specific "${category}" business (keep it), or ` +
+        "would they be shown a list of many different, competing providers to choose between (exclude it, no " +
+        "matter how large or well-known the platform is)? Examples of the marketplace pattern to exclude even " +
+        "though every one of these is a large, legitimate, real company: Swiggy/Zomato/UberEats (food delivery " +
+        "marketplaces, not restaurants), WedMeGood/WeddingSutra (wedding-vendor marketplaces, not photographers), " +
+        "NoBroker/99acres/MagicBricks/Housing.com (real-estate marketplaces, not a builder — this applies to EVERY " +
+        "vertical NoBroker or similar portals have a sub-section for, including interiors/home-services, not just " +
+        "their core real-estate listings), UrbanCompany/Sulekha/Justdial/IndiaMART (local-services or B2B " +
+        "marketplaces, not the provider). Also exclude, for the usual reasons: news articles or press coverage; " +
+        "blog posts, listicles, or review guides ('best X in Y', 'top 10...', 'list of...'); job-listing or " +
+        "employer-review sites (e.g. AmbitionBox, Glassdoor, Naukri, Indeed — these review employers as " +
+        "workplaces, they are never themselves the service provider); market-research reports or industry " +
+        "statistics; business directories, company-database profiles, or documents/slideshows hosted on " +
+        "file-sharing sites (e.g. Scribd, SlideShare, Issuu, Academia.edu — a document ABOUT a niche is never " +
+        "itself a business in that niche, regardless of its title); educational institutions, courses, or " +
+        "certification programs that teach the subject rather than provide the service; and social media or forum " +
+        "posts. Use each candidate's Places data as supporting context: a strong Places match (real category, " +
+        "address, reviews) supports keeping a candidate but never overrides the marketplace/directory/document " +
+        "checks above. Conversely, NO Places match at all should by default mean EXCLUDE — a real single-location " +
+        "business in this niche almost always has some Google Places presence, so a total absence of one is a " +
+        "strong signal this candidate is a webpage/article/directory-listing rather than an actual business; only " +
+        "keep a no-match candidate if its name is unambiguously a specific, proper business name (not a generic " +
+        "phrase like 'X in Y', 'list of X', 'best X'). When genuinely uncertain, exclude rather than " +
+        "include.",
       `Niche: ${category}${location ? ` in ${location}` : ""}\n\nCandidates:\n${list}\n\n` +
-        `Return a JSON array of the 0-based indices to KEEP (genuine individual competitor businesses only). ` +
-        `Example: [0,2,3]`
+        `Return a bare JSON array of the 0-based indices to KEEP (genuine individual competitor businesses only) ` +
+        `— for example [0,2,3]. Do NOT wrap it in an object (NOT {"keep": [0,2,3]}), and do NOT include any text ` +
+        `outside the array.`
     );
+    // Claude occasionally wraps the array in an object (e.g. {"keep": [...]})
+    // despite instructions not to — accept either shape rather than crashing
+    // and silently falling into the unfiltered-fallback below.
+    const keepIndices = Array.isArray(raw) ? raw : Array.isArray(raw?.keep) ? raw.keep : null;
+    if (!keepIndices) {
+      throw new Error(`Unexpected classification response shape: ${JSON.stringify(raw)}`);
+    }
     const keep = new Set(keepIndices);
     // No fallback-to-unfiltered here on purpose: if Claude says none of the
     // raw results are genuine competitors, that's usually correct (an
     // aggregator-dominated results page) — showing the rejected aggregators
     // anyway would silently undo the whole point of this pass.
-    return candidates.filter((_, i) => keep.has(i));
-  } catch {
-    return candidates;
+    return candidates.filter((_, i) => keep.has(i)).map(({ places: _places, ...c }) => c);
+  } catch (err) {
+    console.error(`[classifyCandidates] failed, returning unfiltered: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+    return candidates.map(({ places: _places, ...c }) => c);
   }
 }
 
@@ -323,7 +322,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    const filtered = await filterOutAggregators(candidates, category, location);
+    const enriched = await enrichWithPlaces(candidates, location);
+    const filtered = await classifyCandidates(enriched, category, location);
 
     const competitors: Candidate[] = [];
     const countByTier: Record<Tier, number> = { local: 0, national: 0 };

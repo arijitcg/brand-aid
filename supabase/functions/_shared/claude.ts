@@ -42,7 +42,7 @@ async function sendMessage(system: string, content: unknown): Promise<string> {
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text ?? "";
+  return data.content?.find((b: { type: string }) => b.type === "text")?.text ?? "";
 }
 
 /**

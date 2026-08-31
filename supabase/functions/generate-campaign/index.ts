@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       })
       .join("\n");
 
-    const days = await askClaudeForJson<CampaignDayJson[]>(
+    const raw = await askClaudeForJson<CampaignDayJson[] | { days: CampaignDayJson[] }>(
       "You are a performance-marketing copywriter for a small design/home-services business. " +
         "Draft a 7-day counter-campaign that exploits the competitor weaknesses and outposition " +
         "opportunities given to you. Keep hooks short and punchy, captions under 200 characters, " +
@@ -59,9 +59,14 @@ Deno.serve(async (req) => {
         `Niche: ${search.niche}`,
         `Competitive analysis context:\n${context || "No analyses available."}`,
         "",
-        'Return a JSON array of exactly 7 objects: [{"day": 1, "hook": string, "caption": string, "creativeConcept": string}, ...]',
+        'Return a bare JSON array of exactly 7 objects: [{"day": 1, "hook": string, "caption": string, ' +
+          '"creativeConcept": string}, ...]. Do NOT wrap it in an object (NOT {"days": [...]})',
       ].join("\n")
     );
+    // Claude occasionally wraps the array in an object despite instructions
+    // not to — accept either shape rather than passing a broken value on.
+    const days = Array.isArray(raw) ? raw : Array.isArray(raw?.days) ? raw.days : null;
+    if (!days) throw new Error(`Unexpected campaign response shape: ${JSON.stringify(raw)}`);
 
     return jsonResponse({ days });
   } catch (err) {

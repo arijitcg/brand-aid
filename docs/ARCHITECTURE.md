@@ -215,25 +215,48 @@ the offline demo dataset.
   `X-Goog-FieldMask` header instead — different auth headers, request/response shapes, and review field names
   (`authorAttribution.displayName` instead of `author_name`, etc.). The key needs **"Places API (New)"** enabled
   specifically in Google Cloud Console — enabling just "Places API" (legacy) isn't enough.
-- **Discovery results are filtered, not shown raw, in three layers.** (1) A small, high-impact set of `-site:`
-  exclusions (~12 domains) on the search query itself, so the worst offenders don't crowd real competitor sites off
-  page one in the first place. (2) The full ~80-domain blocklist (social platforms, forums, directories, job/review
-  sites, market-research content farms, news sites, food-delivery marketplaces, etc.) filters any result that still
-  appears — applied post-hoc, where query length doesn't matter. (3) A Claude classification pass judges the
-  remainder contextually — "is this the official site of an individual competitor, or a marketplace/news
-  article/directory/research report/educational institution" — since a fixed list can never anticipate every
-  industry's aggregators (e.g. Swiggy/Zomato for restaurants). This pass has no "fall back to unfiltered if
-  everything gets rejected" escape hatch: an aggregator-dominated results page correctly producing few or zero
-  candidates is treated as the honest answer, not a bug to paper over by showing the rejected aggregators anyway.
-  **Only a subset of the blocklist is used in the query itself (layer 1), not the full list** — an earlier version
-  put all ~80 domains into the query as `-site:` operators, producing a ~1,930-character query that overwhelmed
-  Google's query parsing and caused results to degrade into matching stray fragments instead of the actual search
-  (a real incident: "interior design, Hyderabad" started returning results about clothing "tops"). Layers 2 and 3
-  still see the full list; only the query-embedded portion is capped. One consequence of the filtering being
-  strict: hyperlocal food-service niches can return sparse results, because many small restaurants in India have no
-  indexed site of their own outside delivery platforms — a known, disclosed limitation, not silently masked with
-  wrong data. Listicle-style titles (e.g. "100+ Best Interior Designers in Kolkata for Home") are replaced with a
-  name derived from the site's own domain rather than shown as-is.
+- **Discovery filtering uses general, niche-agnostic rules, not a maintained domain blocklist.** An earlier version
+  filtered results against a growing hand-curated blocklist (~80 domains covering social platforms, marketplaces,
+  directories, job/review sites, etc.). That approach doesn't scale — the user can type literally any niche, and no
+  fixed list can anticipate every industry's aggregators (Swiggy/Zomato for food, WedMeGood/Justdial for weddings,
+  NoBroker/99acres for real estate/interiors, and so on indefinitely). It also caused a real incident: embedding all
+  ~80 domains as `-site:` exclusions produced a ~1,930-character query that overwhelmed Google's query parsing, and
+  "interior design, Hyderabad" started returning results about clothing "tops". The current design uses three
+  layers, none of which grow with the number of niches supported: (1) a small, fixed, closed set of ~14 universally
+  non-business platforms (Reddit, Facebook, Instagram, Twitter/X, YouTube, Quora, Pinterest, Wikipedia, LinkedIn,
+  Medium, Google, Bing) excluded via `-site:` in the query itself — safe to hardcode because it's genuinely
+  niche-agnostic and will never need a new entry for a new industry; (2) deterministic URL-path listicle detection
+  (`/top-`, `/best-`, `/directory/`, numbered-list patterns) with no per-niche knowledge required; (3) a Claude
+  classification pass that judges each remaining candidate by **business model** rather than category-matching or
+  list membership — the question it asks is "would a customer using this site end up as a customer of ONE specific
+  business, or be shown a list of many competing providers to choose between" — enriched with real Google Places
+  data (category, address, rating, review count) fetched per candidate so the model reasons over facts rather than
+  guessing from the search-result title/URL alone. A total absence of any Places match is treated as a strong
+  default-exclude signal (a real single-location business in most niches has *some* Places presence; a bare
+  informational page or directory listing usually doesn't), while a Places match is explicitly framed as *not*
+  overriding the business-model judgment — marketplaces are frequently large, well-reviewed, real companies with
+  real offices, so having a Places listing proves the company is real, not that it itself performs the service.
+  This pass has no "fall back to unfiltered if everything gets rejected" escape hatch: an aggregator-dominated
+  results page correctly producing few or zero candidates is treated as the honest answer, not a bug to paper over
+  by showing the rejected aggregators anyway. One consequence of the filtering being strict: hyperlocal
+  food-service niches can return sparse results, because many small restaurants in India have no indexed site of
+  their own outside delivery platforms — a known, disclosed limitation, not silently masked with wrong data.
+  Listicle-style titles (e.g. "100+ Best Interior Designers in Kolkata for Home") are replaced with a name derived
+  from the site's own domain rather than shown as-is.
+- **Claude's JSON responses are parsed defensively against shape drift, not just content drift.** A real bug
+  surfaced during discovery-filter testing: for the exact same prompt and instructions, Claude sometimes returned
+  the requested bare array (`[0,2,3]`) and sometimes wrapped it in an object (`{"keep": [0,2,3]}`) despite explicit
+  "return ONLY a bare array" instructions — non-deterministic across otherwise-identical calls. The array-only
+  parsing code (`new Set(keepIndices)`) threw `TypeError: object is not iterable` whenever the wrapped shape came
+  back, which the surrounding `catch` silently absorbed by falling back to "keep everything unfiltered" — so
+  discovery for a given niche could appear to keep known aggregators for no visible reason, indistinguishable from
+  a bad classification judgment unless the edge function logs were actually inspected. (A second, unrelated cause
+  of empty Claude responses was also found and fixed while diagnosing this: the client read `content[0].text`
+  assuming the first content block was always the text block, which breaks if a differently-typed block — e.g.
+  a `thinking` block — is ever emitted first; it now searches for the first block with `type: "text"` instead.)
+  Both `discover-competitors`'s classification pass and `generate-campaign`'s 7-day draft now accept either the
+  bare-array or object-wrapped shape rather than assuming one, throwing a clear diagnostic error only if neither
+  shape matches.
 - **Market position and growth signal are thresholds on real data, explicitly labeled as estimates.** Market position
   buckets by Google review count (500+ leader, 100+ established, 20+ emerging, else new entrant); growth signal checks
   whether ≥60% of the (up to 5) reviews Google returns are from the last 6 months. Both are simple, inspectable
