@@ -215,19 +215,25 @@ the offline demo dataset.
   `X-Goog-FieldMask` header instead — different auth headers, request/response shapes, and review field names
   (`authorAttribution.displayName` instead of `author_name`, etc.). The key needs **"Places API (New)"** enabled
   specifically in Google Cloud Console — enabling just "Places API" (legacy) isn't enough.
-- **Discovery results are filtered, not shown raw, in three layers.** (1) `-site:` exclusions on the search query
-  itself for a maintained blocklist of social platforms, forums, directories, job/review sites, market-research
-  content farms, news sites, and (for food niches specifically) delivery marketplaces — this stops them crowding
-  real competitor sites off page one, rather than filtering after the fact. (2) The same blocklist filters any that
-  still appear. (3) A Claude classification pass judges the remainder contextually — "is this the official site of
-  an individual competitor, or a marketplace/news article/directory/research report" — since a fixed list can never
-  anticipate every industry's aggregators (e.g. Swiggy/Zomato for restaurants). This pass has no "fall back to
-  unfiltered if everything gets rejected" escape hatch: an aggregator-dominated results page correctly producing few
-  or zero candidates is treated as the honest answer, not a bug to paper over by showing the rejected aggregators
-  anyway. One consequence: hyperlocal food-service niches can return sparse results, because many small restaurants
-  in India have no indexed site of their own outside delivery platforms — a known, disclosed limitation, not silently
-  masked with wrong data. Listicle-style titles (e.g. "100+ Best Interior Designers in Kolkata for Home") are
-  replaced with a name derived from the site's own domain rather than shown as-is.
+- **Discovery results are filtered, not shown raw, in three layers.** (1) A small, high-impact set of `-site:`
+  exclusions (~12 domains) on the search query itself, so the worst offenders don't crowd real competitor sites off
+  page one in the first place. (2) The full ~80-domain blocklist (social platforms, forums, directories, job/review
+  sites, market-research content farms, news sites, food-delivery marketplaces, etc.) filters any result that still
+  appears — applied post-hoc, where query length doesn't matter. (3) A Claude classification pass judges the
+  remainder contextually — "is this the official site of an individual competitor, or a marketplace/news
+  article/directory/research report/educational institution" — since a fixed list can never anticipate every
+  industry's aggregators (e.g. Swiggy/Zomato for restaurants). This pass has no "fall back to unfiltered if
+  everything gets rejected" escape hatch: an aggregator-dominated results page correctly producing few or zero
+  candidates is treated as the honest answer, not a bug to paper over by showing the rejected aggregators anyway.
+  **Only a subset of the blocklist is used in the query itself (layer 1), not the full list** — an earlier version
+  put all ~80 domains into the query as `-site:` operators, producing a ~1,930-character query that overwhelmed
+  Google's query parsing and caused results to degrade into matching stray fragments instead of the actual search
+  (a real incident: "interior design, Hyderabad" started returning results about clothing "tops"). Layers 2 and 3
+  still see the full list; only the query-embedded portion is capped. One consequence of the filtering being
+  strict: hyperlocal food-service niches can return sparse results, because many small restaurants in India have no
+  indexed site of their own outside delivery platforms — a known, disclosed limitation, not silently masked with
+  wrong data. Listicle-style titles (e.g. "100+ Best Interior Designers in Kolkata for Home") are replaced with a
+  name derived from the site's own domain rather than shown as-is.
 - **Market position and growth signal are thresholds on real data, explicitly labeled as estimates.** Market position
   buckets by Google review count (500+ leader, 100+ established, 20+ emerging, else new entrant); growth signal checks
   whether ≥60% of the (up to 5) reviews Google returns are from the last 6 months. Both are simple, inspectable
