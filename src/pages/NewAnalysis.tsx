@@ -67,12 +67,18 @@ export default function NewAnalysis() {
       if (!searchId) return;
       await setSelectedCompetitors(searchId, selectedIds);
       const selected = candidates.filter((c) => selectedIds.includes(c.id));
-      for (const c of selected) {
-        setAnalyzeProgress((p) => ({ ...p, [c.id]: "pending" }));
-        await fetchCompetitorData(c, niche);
-        await analyzeCompetitor(c, niche);
-        setAnalyzeProgress((p) => ({ ...p, [c.id]: "done" }));
-      }
+      // Each competitor's own fetch-then-analyze chain is sequential (analysis
+      // needs the fetched data), but the chains for different competitors are
+      // independent — running them in parallel cuts wall-clock time roughly
+      // by the number of competitors instead of multiplying it.
+      setAnalyzeProgress(Object.fromEntries(selected.map((c) => [c.id, "pending"])));
+      await Promise.all(
+        selected.map(async (c) => {
+          await fetchCompetitorData(c, niche);
+          await analyzeCompetitor(c, niche);
+          setAnalyzeProgress((p) => ({ ...p, [c.id]: "done" }));
+        })
+      );
     },
     onSuccess: () => setStep("ads"),
   });
