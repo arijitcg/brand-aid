@@ -237,13 +237,24 @@ async function classifyCandidates(
         "(a Places match proves the company is real, not that it itself performs the service). Ask: if a customer " +
         `used this site, would they end up as a customer of ONE specific "${category}" business (keep it), or ` +
         "would they be shown a list of many different, competing providers to choose between (exclude it, no " +
-        "matter how large or well-known the platform is)? Examples of the marketplace pattern to exclude even " +
+        "matter how large or well-known the platform is)? IMPORTANT: operating in many cities, being large, or " +
+        "being a well-known chain/franchise is NOT the disqualifying signal and must NOT cause exclusion by " +
+        "itself — a company that delivers the SAME branded service itself in dozens of cities (e.g. Livspace, " +
+        "HomeLane, Asian Paints Beautiful Homes, and similar full-service interior-design chains; or any national " +
+        "retail/service chain in other niches) is exactly as much a genuine single competitor as a local one-city " +
+        "business, just bigger — KEEP these. The only disqualifying pattern is the site connecting the customer " +
+        "to a marketplace of DIFFERENT, independently-branded third-party businesses to choose between, not the " +
+        "candidate's own size or geographic reach. Examples of the marketplace pattern to exclude even " +
         "though every one of these is a large, legitimate, real company: Swiggy/Zomato/UberEats (food delivery " +
         "marketplaces, not restaurants), WedMeGood/WeddingSutra (wedding-vendor marketplaces, not photographers), " +
         "NoBroker/99acres/MagicBricks/Housing.com (real-estate marketplaces, not a builder — this applies to EVERY " +
         "vertical NoBroker or similar portals have a sub-section for, including interiors/home-services, not just " +
         "their core real-estate listings), UrbanCompany/Sulekha/Justdial/IndiaMART (local-services or B2B " +
-        "marketplaces, not the provider). Also exclude, for the usual reasons: news articles or press coverage; " +
+        "marketplaces, not the provider), Houzz/Yelp/Angi (professional-directory platforms whose category/city " +
+        "pages list and let you browse MANY different independent professionals' profiles or portfolios — a " +
+        "candidate whose page is one of these browse/listing pages, not a single company's own site, is a " +
+        "directory result, not a competitor, even though Houzz/Yelp/Angi are themselves large real companies). " +
+        "Also exclude, for the usual reasons: news articles or press coverage; " +
         "blog posts, listicles, or review guides ('best X in Y', 'top 10...', 'list of...'); job-listing or " +
         "employer-review sites (e.g. AmbitionBox, Glassdoor, Naukri, Indeed — these review employers as " +
         "workplaces, they are never themselves the service provider); market-research reports or industry " +

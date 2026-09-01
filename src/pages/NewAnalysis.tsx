@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, Loader2, RotateCcw, Sparkles, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, RotateCcw, Sparkles, Upload } from "lucide-react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -219,8 +219,15 @@ export default function NewAnalysis() {
         {step === "analyzing" && (
           <Card>
             <CardHeader>
-              <CardTitle>Step 3 · Fetching site + reviews, running analysis</CardTitle>
-              <CardDescription>Pulling website content, Google reviews, and generating SWOT per competitor.</CardDescription>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Step 3 · Fetching site + reviews, running analysis</CardTitle>
+                  <CardDescription>Pulling website content, Google reviews, and generating SWOT per competitor.</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setStep("select")}>
+                  <ArrowLeft /> Change selection
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {selectedCompetitors.map((c) => {
