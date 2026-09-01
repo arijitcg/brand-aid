@@ -26,7 +26,7 @@
 // Secrets: SERPAPI_KEY  -or-  GOOGLE_CSE_KEY + GOOGLE_CSE_CX
 //          ANTHROPIC_API_KEY (optional — enables the classification pass)
 //          GOOGLE_PLACES_API_KEY (optional — enables the Places validation pass)
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { askClaudeForJson } from "../_shared/claude.ts";
 
 type Tier = "local" | "national";
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
     try {
       [localResults, nationalResults] = await Promise.all([runSearch(localQuery), runSearch(nationalQuery)]);
     } catch (err) {
-      return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 501);
+      return jsonResponse({ error: errorMessage(err) }, 501);
     }
 
     const seen = new Set<string>();
@@ -346,6 +346,6 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ competitors });
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

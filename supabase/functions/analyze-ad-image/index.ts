@@ -4,7 +4,7 @@
 // their automated-access restriction) and extracts the ad text + messaging
 // angle via Claude vision.
 // Secret: ANTHROPIC_API_KEY
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { askClaudeForJsonWithImage } from "../_shared/claude.ts";
 
 interface ExtractedAd {
@@ -35,6 +35,6 @@ Deno.serve(async (req) => {
 
     return jsonResponse(result);
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

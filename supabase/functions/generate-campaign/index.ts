@@ -1,7 +1,7 @@
 // Drafts a 7-day counter-campaign (hooks, captions, creative concepts) from
 // the competitive analyses already saved for this search.
 // Secret: ANTHROPIC_API_KEY
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { supabaseForRequest } from "../_shared/supabaseClient.ts";
 import { askClaudeForJson } from "../_shared/claude.ts";
 
@@ -70,6 +70,6 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ days });
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

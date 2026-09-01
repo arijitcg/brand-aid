@@ -1,6 +1,6 @@
 // Reads one pasted Meta Ad Library ad and identifies its messaging angle.
 // Secret: ANTHROPIC_API_KEY
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { askClaudeForJson } from "../_shared/claude.ts";
 
 Deno.serve(async (req) => {
@@ -22,6 +22,6 @@ Deno.serve(async (req) => {
 
     return jsonResponse(result);
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

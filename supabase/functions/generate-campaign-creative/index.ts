@@ -4,7 +4,7 @@
 // — AI image models render text unreliably, so the hook is overlaid as real
 // HTML/CSS on top of this image client-side instead of being baked in here.
 // Secret: GEMINI_API_KEY
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { supabaseForRequest } from "../_shared/supabaseClient.ts";
 
 // "Nano Banana" — Gemini's native image-output model, called via
@@ -81,6 +81,6 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ imageUrl });
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

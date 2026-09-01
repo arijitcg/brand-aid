@@ -3,7 +3,7 @@
 // everyone away from.
 // Secret: GOOGLE_PLACES_API_KEY (with "Places API (New)" enabled on the
 // Google Cloud project the key belongs to)
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { supabaseForRequest } from "../_shared/supabaseClient.ts";
 
 function stripHtml(html: string): string {
@@ -132,6 +132,6 @@ Deno.serve(async (req) => {
       source: data.source,
     });
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

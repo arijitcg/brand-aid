@@ -1,7 +1,7 @@
 // Generates SWOT, positioning, review-mined complaint patterns, and
 // "how to outposition them" tips for one competitor via Claude.
 // Secret: ANTHROPIC_API_KEY
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorMessage, handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { supabaseForRequest } from "../_shared/supabaseClient.ts";
 import { askClaudeForJson } from "../_shared/claude.ts";
 
@@ -67,6 +67,6 @@ Deno.serve(async (req) => {
       source: data.source,
     });
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return jsonResponse({ error: errorMessage(err) }, 500);
   }
 });

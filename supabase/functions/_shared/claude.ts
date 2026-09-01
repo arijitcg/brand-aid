@@ -29,7 +29,7 @@ async function sendMessage(system: string, content: unknown): Promise<string> {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1500,
+      max_tokens: 4096,
       system: `${system}\n\nRespond with ONLY a single valid JSON object/array. No markdown, no commentary, no code fences.`,
       messages: [{ role: "user", content }],
     }),
@@ -42,6 +42,12 @@ async function sendMessage(system: string, content: unknown): Promise<string> {
   }
 
   const data = await res.json();
+  if (data.stop_reason === "max_tokens") {
+    // The response was cut off mid-output (thinking tokens count against
+    // max_tokens too, so a verbose answer can exhaust the budget before
+    // finishing) — surface this plainly instead of a cryptic JSON parse error.
+    throw new Error("Claude response was truncated (hit max_tokens) before completing valid JSON.");
+  }
   return data.content?.find((b: { type: string }) => b.type === "text")?.text ?? "";
 }
 
