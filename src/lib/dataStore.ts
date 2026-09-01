@@ -250,7 +250,7 @@ export async function setSelectedCompetitors(searchId: string, competitorIds: st
 export async function fetchCompetitorData(competitor: Competitor, niche: string): Promise<CompetitorData> {
   if (isLive && supabase) {
     const { data, error } = await supabase.functions.invoke("fetch-competitor-data", {
-      body: { competitorId: competitor.id, name: competitor.name, websiteUrl: competitor.websiteUrl },
+      body: { competitorId: competitor.id, name: competitor.name, websiteUrl: competitor.websiteUrl, niche },
     });
     if (error) await throwFunctionError(error);
     return data as CompetitorData;

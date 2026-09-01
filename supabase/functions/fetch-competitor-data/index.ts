@@ -38,9 +38,13 @@ interface PlacesReviewResult {
   reviewCount: number;
 }
 
-async function fetchGoogleReviews(competitorName: string, apiKey: string): Promise<PlacesReviewResult> {
+async function fetchGoogleReviews(competitorName: string, location: string, apiKey: string): Promise<PlacesReviewResult> {
   const empty: PlacesReviewResult = { reviews: [], avgRating: 0, reviewCount: 0 };
 
+  // Searching by name alone is ambiguous for multi-city chains (e.g. "Livspace"
+  // can resolve to a corporate HQ or an unrelated branch with different — or
+  // zero — reviews) and for generic local names. Including the location
+  // anchors the match to the actual branch this competitor was discovered at.
   const searchRes = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -48,7 +52,7 @@ async function fetchGoogleReviews(competitorName: string, apiKey: string): Promi
       "X-Goog-Api-Key": apiKey,
       "X-Goog-FieldMask": "places.id",
     },
-    body: JSON.stringify({ textQuery: competitorName }),
+    body: JSON.stringify({ textQuery: location ? `${competitorName} ${location}` : competitorName }),
     signal: AbortSignal.timeout(15000),
   });
   if (!searchRes.ok) throw new Error(`Places searchText error: ${searchRes.status} ${await searchRes.text()}`);
@@ -92,10 +96,11 @@ Deno.serve(async (req) => {
   if (preflight) return preflight;
 
   try {
-    const { competitorId, name, websiteUrl } = await req.json();
+    const { competitorId, name, websiteUrl, niche } = await req.json();
     if (!competitorId || !name || !websiteUrl) {
       return jsonResponse({ error: "competitorId, name, and websiteUrl are required" }, 400);
     }
+    const location = typeof niche === "string" ? niche.split(",").slice(1).join(",").trim() : "";
 
     const placesKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
     if (!placesKey) {
@@ -104,7 +109,7 @@ Deno.serve(async (req) => {
 
     const [websiteSummary, placesResult] = await Promise.all([
       fetchWebsiteText(websiteUrl),
-      fetchGoogleReviews(name, placesKey),
+      fetchGoogleReviews(name, location, placesKey),
     ]);
 
     const supabase = supabaseForRequest(req);
